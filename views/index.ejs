@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Webpage Scraper</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.7/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+
+        }
+
+        table,
+        th,
+        td {
+            border: 2px solid #ddd;
+        }
+
+        th,
+        td {
+            padding: 8px;
+            text-align: center;
+        }
+
+        td {
+            text-align: left;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .result {
+            margin-top: 25px;
+        }
+
+        h1 {
+            margin-bottom: 35px;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .form-row {
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Webpage Scraper</h1>
+        <form id="wordCountForm">
+            <div class="form-row justify-content-center align-items-center">
+                <div class="col-auto">
+                    <input class="form-control" type="text" id="websiteUrl" placeholder="Enter website URL">
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-primary" type="submit">Get Insights</button>
+                </div>
+            </div>
+        </form>
+        <div class="result">
+            <h2>RESULT</h2>
+            <table id="searchHistory">
+                <thead>
+                    <tr>
+                        <th>Domain Name</th>
+                        <th>Word Count</th>
+                        <th>Web Links</th>
+                        <th>Media Links</th>
+                        <th>Favorite</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="searchHistory"></tbody>
+            </table>
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.7/js/jquery.dataTables.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const wordCountForm = document.getElementById('wordCountForm');
+            const websiteUrlInput = document.getElementById('websiteUrl');
+            const wordCountResult = document.getElementById('wordCountResult');
+            const searchHistory = document.getElementById('searchHistory');
+
+
+            // Add event listener to the form
+            wordCountForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                let websiteUrl = websiteUrlInput.value;
+
+                // Check if the URL starts with "http://" or "https://"
+                if (!websiteUrl.startsWith('http://') && !websiteUrl.startsWith('https://')) {
+                    // If not, add "http://" as the default protocol
+                    websiteUrl = 'http://' + websiteUrl;
+                }
+
+                // Make an API request to count words, extract links, and check favorite status
+                const response = await fetch('/api/count-words', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ websiteUrl }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    //wordCountResult.innerHTML = ``;
+                    websiteUrlInput.value = '';
+
+                    // Add the result to the search history
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                <td>${data.websiteUrl}</td>
+                <td>${data.wordCount}</td>
+                <td>${data.links.join(', ')}</td>
+                <td>${data.mediaLinks.join(', ')}</td>
+                <td class="favoriteStatus">${data.isFavorite ? 'True' : 'False'}</td>
+                <td>
+                    <button class="favoriteButton">${data.isFavorite ? 'Remove from Favorite' : 'Add to Favorite'}</button>
+                </td>
+            `;
+                    searchHistory.appendChild(row);
+
+                    // Add event listener to the "Toggle Favorite" button
+                    const favoriteButton = row.querySelector('.favoriteButton');
+                    favoriteButton.addEventListener('click', async () => {
+                        const toggleResponse = await fetch('/api/toggle-favorite', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ websiteUrl: data.websiteUrl }),
+                        });
+
+                        if (toggleResponse.ok) {
+                            const toggleData = await toggleResponse.json();
+                            data.isFavorite = toggleData.isFavorite;
+                            const favoriteStatus = row.querySelector('.favoriteStatus');
+                            favoriteStatus.textContent = data.isFavorite ? 'True' : 'False';
+                            favoriteButton.textContent = data.isFavorite ? 'Remove from Favorite' : 'Add to Favorite';
+                        }
+                    });
+                }
+            });
+
+            // Fetch and display the search history
+            async function fetchSearchHistory() {
+                const response = await fetch('/api/search-history');
+                if (response.ok) {
+                    const history = await response.json();
+                    for (const entry of history) {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                    <td>${entry.websiteUrl}</td>
+                    <td>${entry.wordCount}</td>
+                    <td>${entry.links.join(', ')}</td>
+                    <td>${entry.mediaLinks.join(', ')}</td>
+                    <td class="favoriteStatus">${entry.isFavorite ? 'True' : 'False'}</td>
+                    <td>
+                        <button class="favoriteButton" style="background-color: light border:none ">${entry.isFavorite ? 'Remove from Favorite' : 'Add to Favorite'}</button>
+                    </td>
+                `;
+                        searchHistory.appendChild(row);
+
+                        // Add event listener to the "Toggle Favorite" button
+                        const favoriteButton = row.querySelector('.favoriteButton');
+                        favoriteButton.addEventListener('click', async () => {
+                            const toggleResponse = await fetch('/api/toggle-favorite', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({ websiteUrl: entry.websiteUrl }),
+                            });
+
+                            if (toggleResponse.ok) {
+                                const toggleData = await toggleResponse.json();
+                                entry.isFavorite = toggleData.isFavorite;
+                                const favoriteStatus = row.querySelector('.favoriteStatus');
+                                favoriteStatus.textContent = entry.isFavorite ? 'True' : 'False';
+                                favoriteButton.textContent = entry.isFavorite ? 'Remove from Favorite' : 'Add to Favorite';
+                            }
+                        });
+                    }
+                }
+            }
+
+            fetchSearchHistory();
+        });
+
+    </script>
+</body>
+
+</html>
